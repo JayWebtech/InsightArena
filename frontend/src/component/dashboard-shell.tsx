@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  ChevronDown,
   BarChart3,
   Gift,
   LayoutDashboard,
@@ -107,6 +108,38 @@ function SidebarContent({ onNavigate }: SidebarContentProps) {
   );
 }
 
+function TopNavigation() {
+  return (
+    <section className="border-b border-white/8 px-5 py-6 sm:px-8 lg:px-10">
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-[2.45rem]">
+            Welcome back, Ayomide
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-[#97a0b5] sm:text-base">
+            Here&apos;s a quick overview of your prediction activity and performance.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            className="rounded-xl bg-[#2f9e9d] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#38adaa]"
+          >
+            Make Prediction
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-transparent px-6 py-3 text-sm font-medium text-[#d6daea] transition hover:bg-white/5"
+          >
+            Create Competition
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 type DashboardShellProps = {
   children: ReactNode;
 };
@@ -141,7 +174,11 @@ export function DashboardShell({ children }: DashboardShellProps) {
             </button>
           </header>
 
-          <main className="min-h-[calc(100vh-4.5rem)] flex-1">{children}</main>
+          <div className="sticky top-[72px] z-20 bg-[#141824]/95 backdrop-blur lg:top-0">
+            <TopNavigation />
+          </div>
+
+          <main className="min-h-0 flex-1">{children}</main>
         </div>
       </div>
 
