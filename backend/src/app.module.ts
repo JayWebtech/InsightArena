@@ -56,4 +56,4 @@ import { MarketsModule } from './markets/markets.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
