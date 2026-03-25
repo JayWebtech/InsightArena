@@ -52,11 +52,7 @@ pub fn refund(env: &Env, recipient: &Address, amount: i128) -> Result<(), Insigh
 ///
 /// This is semantically distinct from `refund` (used for market cancellation),
 /// but uses the same escrow transfer path from contract balance to recipient.
-pub fn release_payout(
-    env: &Env,
-    to: &Address,
-    amount: i128,
-) -> Result<(), InsightArenaError> {
+pub fn release_payout(env: &Env, to: &Address, amount: i128) -> Result<(), InsightArenaError> {
     if amount <= 0 {
         return Err(InsightArenaError::InvalidInput);
     }
