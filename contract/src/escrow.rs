@@ -321,7 +321,9 @@ mod escrow_tests {
         // Seed the contract with tokens and set the treasury tracker
         fund(&env, &xlm_token, &client.address, fee_amount);
         env.as_contract(&client.address, || {
-            env.storage().persistent().set(&DataKey::Treasury, &fee_amount);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Treasury, &fee_amount);
         });
 
         let token = TokenClient::new(&env, &xlm_token);
@@ -338,7 +340,10 @@ mod escrow_tests {
 
         // Internal tracker decremented
         let remaining = env.as_contract(&client.address, || {
-            env.storage().persistent().get::<_, i128>(&DataKey::Treasury).unwrap_or(0)
+            env.storage()
+                .persistent()
+                .get::<_, i128>(&DataKey::Treasury)
+                .unwrap_or(0)
         });
         assert_eq!(remaining, 0);
     }
@@ -357,7 +362,9 @@ mod escrow_tests {
         let treasury_bal = 1_000_000_i128;
         fund(&env, &xlm_token, &client.address, 10_000_000);
         env.as_contract(&client.address, || {
-            env.storage().persistent().set(&DataKey::Treasury, &treasury_bal);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Treasury, &treasury_bal);
         });
 
         let result = env.as_contract(&client.address, || {
