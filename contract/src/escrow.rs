@@ -1,8 +1,16 @@
 use soroban_sdk::{token, Address, Env, Vec};
 
-use crate::config;
+use crate::config::{self, PERSISTENT_BUMP, PERSISTENT_THRESHOLD};
 use crate::errors::InsightArenaError;
 use crate::storage_types::{DataKey, Market, Prediction};
+
+fn bump_treasury(env: &Env) {
+    env.storage().persistent().extend_ttl(
+        &DataKey::Treasury,
+        PERSISTENT_THRESHOLD,
+        PERSISTENT_BUMP,
+    );
+}
 
 /// Transfer `amount` stroops from `predictor` into the contract's escrow.
 ///
@@ -161,6 +169,27 @@ pub fn assert_escrow_solvent(env: &Env) -> Result<(), InsightArenaError> {
     }
 
     Ok(())
+}
+
+pub(crate) fn add_to_treasury_balance(env: &Env, amount: i128) {
+    if amount <= 0 {
+        return;
+    }
+
+    let current_balance: i128 = env
+        .storage()
+        .persistent()
+        .get(&DataKey::Treasury)
+        .unwrap_or(0);
+
+    let next_balance = current_balance
+        .checked_add(amount)
+        .expect("treasury balance overflow");
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::Treasury, &next_balance);
+    bump_treasury(env);
 }
 
 /// Transfer accumulated fee to a designated treasury or creator address.
