@@ -160,7 +160,11 @@ pub fn transfer_admin(env: &Env, new_admin: Address) -> Result<(), InsightArenaE
 /// Update the trusted oracle address. Caller must be the current admin.
 ///
 /// After this call the old oracle address can no longer resolve markets.
-pub fn update_oracle(env: &Env, admin: Address, new_oracle: Address) -> Result<(), InsightArenaError> {
+pub fn update_oracle(
+    env: &Env,
+    admin: Address,
+    new_oracle: Address,
+) -> Result<(), InsightArenaError> {
     let mut config = load_config(env)?;
 
     // Auth against the *current* admin.
