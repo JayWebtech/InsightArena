@@ -176,6 +176,7 @@ fn default_market_params(env: &Env) -> CreateMarketParams {
         outcomes: vec![env, symbol_short!("yes"), symbol_short!("no")],
         end_time: now + 100,
         resolution_time: now + 200,
+        dispute_window: 86_400,
         creator_fee_bps: 100,
         min_stake: 10_000_000,
         max_stake: 100_000_000,
@@ -366,8 +367,29 @@ fn test_points_accumulate_across_markets() {
     );
 
     let profile = client.get_user_stats(&winner);
-    let expected_points = (first_payout / 10_000_000) as u32 + (second_payout / 10_000_000) as u32;
+    let expected_points = calculate_expected_points(50_000_000, 1, 1) + calculate_expected_points(30_000_000, 2, 2);
 
     assert_eq!(profile.season_points, expected_points);
     assert_eq!(profile.total_winnings, first_payout + second_payout);
+}
+
+fn calculate_expected_points(stake_amount: i128, correct: u32, total: u32) -> u32 {
+    if total == 0 {
+        return 0;
+    }
+    let correct = correct.min(total) as i128;
+    let total = total as i128;
+    let stake = stake_amount.max(0_i128);
+    let stake_bonus = stake / 100_000_000;
+    let sum = 100_i128.saturating_add(stake_bonus);
+    let numer = sum.saturating_mul(correct).saturating_mul(2_i128);
+    let res = numer / total;
+    if res < 0 {
+        return 0;
+    }
+    if res > u32::MAX as i128 {
+        u32::MAX
+    } else {
+        res as u32
+    }
 }
