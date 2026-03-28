@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { NotificationsService } from '../src/notifications/notifications.service';
 import { SeasonsController } from '../src/seasons/seasons.controller';
 import { SeasonsService } from '../src/seasons/seasons.service';
 import { Season } from '../src/seasons/entities/season.entity';
@@ -13,7 +14,7 @@ import { ResponseInterceptor } from '../src/common/interceptors/response.interce
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 
 describe('GET /seasons (paginated list)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let getManyAndCount: jest.Mock;
 
   const winner = {
@@ -67,6 +68,27 @@ describe('GET /seasons (paginated list)', () => {
           },
         },
         { provide: SorobanService, useValue: { createSeason: jest.fn() } },
+        {
+          provide: NotificationsService,
+          useValue: { create: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            createQueryRunner: jest.fn().mockReturnValue({
+              connect: jest.fn().mockResolvedValue(undefined),
+              startTransaction: jest.fn().mockResolvedValue(undefined),
+              manager: {
+                findOne: jest.fn(),
+                save: jest.fn(),
+                update: jest.fn(),
+              },
+              commitTransaction: jest.fn().mockResolvedValue(undefined),
+              rollbackTransaction: jest.fn().mockResolvedValue(undefined),
+              release: jest.fn().mockResolvedValue(undefined),
+            }),
+          },
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)

@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { NotificationsService } from '../src/notifications/notifications.service';
 import { SeasonsController } from '../src/seasons/seasons.controller';
 import { SeasonsService } from '../src/seasons/seasons.service';
 import { Season } from '../src/seasons/entities/season.entity';
@@ -21,7 +22,7 @@ function mockSeasonsQueryBuilder(getOneResult: Season | null) {
 }
 
 describe('GET /seasons/active (HTTP integration)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
 
   const fullSeason: Season = {
     id: '123e4567-e89b-12d3-a456-426614174001',
@@ -31,10 +32,30 @@ describe('GET /seasons/active (HTTP integration)', () => {
     ends_at: new Date('2099-12-31T23:59:59.000Z'),
     reward_pool_stroops: '100000000',
     is_active: true,
+    is_finalized: false,
+    top_winner: null,
     on_chain_season_id: 7,
     soroban_tx_hash: 'a'.repeat(64),
     created_at: new Date('2025-01-01T00:00:00.000Z'),
     updated_at: new Date('2025-06-01T00:00:00.000Z'),
+  };
+
+  const mockDataSource = () => {
+    const mockQueryRunner = {
+      connect: jest.fn().mockResolvedValue(undefined),
+      startTransaction: jest.fn().mockResolvedValue(undefined),
+      manager: {
+        findOne: jest.fn(),
+        save: jest.fn(),
+        update: jest.fn(),
+      },
+      commitTransaction: jest.fn().mockResolvedValue(undefined),
+      rollbackTransaction: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+    return {
+      createQueryRunner: jest.fn().mockReturnValue(mockQueryRunner),
+    };
   };
 
   async function createApp(getOneResult: Season | null) {
@@ -56,6 +77,11 @@ describe('GET /seasons/active (HTTP integration)', () => {
           },
         },
         { provide: SorobanService, useValue: { createSeason: jest.fn() } },
+        {
+          provide: NotificationsService,
+          useValue: { create: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: DataSource, useFactory: mockDataSource },
       ],
     })
       .overrideGuard(JwtAuthGuard)

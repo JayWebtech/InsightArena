@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SeasonsService } from './seasons.service';
 import { Season } from './entities/season.entity';
 import { SorobanService } from '../soroban/soroban.service';
@@ -12,12 +13,7 @@ describe('SeasonsService', () => {
   let seasonsRepository: jest.Mocked<
     Pick<
       Repository<Season>,
-      | 'find'
-      | 'exist'
-      | 'create'
-      | 'save'
-      | 'remove'
-      | 'createQueryBuilder'
+      'find' | 'exist' | 'create' | 'save' | 'remove' | 'createQueryBuilder'
     >
   >;
   let sorobanService: { createSeason: jest.Mock };
@@ -41,6 +37,27 @@ describe('SeasonsService', () => {
         SeasonsService,
         { provide: getRepositoryToken(Season), useValue: seasonsRepository },
         { provide: SorobanService, useValue: sorobanService },
+        {
+          provide: NotificationsService,
+          useValue: { create: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            createQueryRunner: jest.fn().mockReturnValue({
+              connect: jest.fn().mockResolvedValue(undefined),
+              startTransaction: jest.fn().mockResolvedValue(undefined),
+              manager: {
+                findOne: jest.fn(),
+                save: jest.fn(),
+                update: jest.fn(),
+              },
+              commitTransaction: jest.fn().mockResolvedValue(undefined),
+              rollbackTransaction: jest.fn().mockResolvedValue(undefined),
+              release: jest.fn().mockResolvedValue(undefined),
+            }),
+          },
+        },
       ],
     }).compile();
 

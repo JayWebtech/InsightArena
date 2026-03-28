@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   DiskHealthIndicator,
   HealthCheck,
+  HealthCheckResult,
   HealthCheckService,
   HttpHealthIndicator,
   TypeOrmHealthIndicator,
@@ -31,25 +32,20 @@ export class HealthService {
    * Returns 503 Service Unavailable when any check fails
    */
   @HealthCheck()
-  async checkHealth() {
+  async checkHealth(): Promise<HealthCheckResult> {
     const port = process.env.PORT ?? 3000;
     const baseUrl = `http://localhost:${port}/api/v1/health/ping`;
 
-    return this.health.check([
-      // HTTP health check (self)
+    return await this.health.check([
       () =>
         this.http.pingCheck('http', baseUrl, {
           timeout: 5000,
         }),
-
-      // Database health check
       () => this.db.pingCheck('database', { connection: this.dataSource }),
-
-      // Disk storage check - ensure at least 100MB available
       () =>
         this.disk.checkStorage('storage', {
           path: os.tmpdir(),
-          thresholdPercent: 90, // Alert if disk usage exceeds 90%
+          thresholdPercent: 90,
         }),
     ]);
   }

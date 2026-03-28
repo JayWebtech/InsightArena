@@ -105,7 +105,8 @@ export class SorobanService {
       this.logger.log(
         `Soroban createSeason: start=${startTimeUnix} end=${endTimeUnix} pool=${rewardPoolStroops}`,
       );
-      const mix = (BigInt(startTimeUnix) ^ BigInt(endTimeUnix)) & BigInt(0x7fffffff);
+      const mix =
+        (BigInt(startTimeUnix) ^ BigInt(endTimeUnix)) & BigInt(0x7fffffff);
       const on_chain_season_id = mix === 0n ? 1 : Number(mix);
       const tx_hash = Buffer.from(
         `season:${startTimeUnix}:${endTimeUnix}:${rewardPoolStroops}`,

@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AppModule } from '../src/app.module';
 import { User } from '../src/users/entities/user.entity';
@@ -10,7 +9,10 @@ import { Prediction } from '../src/predictions/entities/prediction.entity';
 import { LeaderboardEntry } from '../src/leaderboard/entities/leaderboard-entry.entity';
 import { Market } from '../src/markets/entities/market.entity';
 
-function mockQueryBuilder(terminal: { getCount?: number; getMany?: Prediction[] }) {
+function mockQueryBuilder(terminal: {
+  getCount?: number;
+  getMany?: Prediction[];
+}) {
   return {
     innerJoin: jest.fn().mockReturnThis(),
     innerJoinAndSelect: jest.fn().mockReturnThis(),
@@ -24,7 +26,7 @@ function mockQueryBuilder(terminal: { getCount?: number; getMany?: Prediction[] 
 }
 
 describe('Analytics dashboard (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let jwtService: JwtService;
   let usersRepository: {
     findOneBy: jest.Mock;
@@ -55,10 +57,10 @@ describe('Analytics dashboard (e2e)', () => {
 
   beforeEach(async () => {
     usersRepository = {
-      findOneBy: jest.fn(async (where: { id: string }) =>
+      findOneBy: jest.fn((where: { id: string }) =>
         where.id === mockUser.id ? mockUser : null,
       ),
-      findOne: jest.fn(async (opts: { where: { id: string } }) =>
+      findOne: jest.fn((opts: { where: { id: string } }) =>
         opts.where.id === mockUser.id ? mockUser : null,
       ),
     };
@@ -162,8 +164,6 @@ describe('Analytics dashboard (e2e)', () => {
   });
 
   it('GET /analytics/dashboard returns 401 without Authorization', async () => {
-    await request(app.getHttpServer())
-      .get('/analytics/dashboard')
-      .expect(401);
+    await request(app.getHttpServer()).get('/analytics/dashboard').expect(401);
   });
 });

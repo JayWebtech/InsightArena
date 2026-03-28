@@ -4,7 +4,10 @@ export class DashboardKpisDto {
   @ApiProperty({ example: 128 })
   total_predictions: number;
 
-  @ApiProperty({ example: '68.4', description: 'Percentage, one decimal place' })
+  @ApiProperty({
+    example: '68.4',
+    description: 'Percentage, one decimal place',
+  })
   accuracy_rate: string;
 
   @ApiProperty({ example: 24 })

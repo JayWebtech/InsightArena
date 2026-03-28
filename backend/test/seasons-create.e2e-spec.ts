@@ -8,8 +8,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { NotificationsService } from '../src/notifications/notifications.service';
 import { SeasonsController } from '../src/seasons/seasons.controller';
 import { SeasonsService } from '../src/seasons/seasons.service';
 import { Season } from '../src/seasons/entities/season.entity';
@@ -49,7 +50,7 @@ describe('POST /seasons (HTTP integration)', () => {
   async function createApp(
     user: 'admin' | 'user' | 'unauthenticated',
     overlapActiveCount: number,
-  ): Promise<INestApplication<App>> {
+  ): Promise<INestApplication> {
     const qb = {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
@@ -66,12 +67,14 @@ describe('POST /seasons (HTTP integration)', () => {
             find: jest.fn().mockResolvedValue([]),
             exist: jest.fn().mockResolvedValue(false),
             create: jest.fn((x: Partial<Season>) => ({ ...x })),
-            save: jest.fn(async (x: Season) => ({
-              ...x,
-              id: x.id ?? 'new-season-uuid',
-              created_at: new Date('2026-01-15T00:00:00.000Z'),
-              updated_at: new Date('2026-01-15T00:00:00.000Z'),
-            })),
+            save: jest.fn((x: Season) =>
+              Promise.resolve({
+                ...x,
+                id: x.id ?? 'new-season-uuid',
+                created_at: new Date('2026-01-15T00:00:00.000Z'),
+                updated_at: new Date('2026-01-15T00:00:00.000Z'),
+              }),
+            ),
             remove: jest.fn(),
             createQueryBuilder: jest.fn().mockReturnValue(qb),
           },
@@ -79,9 +82,31 @@ describe('POST /seasons (HTTP integration)', () => {
         {
           provide: SorobanService,
           useValue: {
-            createSeason: jest
-              .fn()
-              .mockResolvedValue({ on_chain_season_id: 99, tx_hash: 'c'.repeat(64) }),
+            createSeason: jest.fn().mockResolvedValue({
+              on_chain_season_id: 99,
+              tx_hash: 'c'.repeat(64),
+            }),
+          },
+        },
+        {
+          provide: NotificationsService,
+          useValue: { create: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            createQueryRunner: jest.fn().mockReturnValue({
+              connect: jest.fn().mockResolvedValue(undefined),
+              startTransaction: jest.fn().mockResolvedValue(undefined),
+              manager: {
+                findOne: jest.fn(),
+                save: jest.fn(),
+                update: jest.fn(),
+              },
+              commitTransaction: jest.fn().mockResolvedValue(undefined),
+              rollbackTransaction: jest.fn().mockResolvedValue(undefined),
+              release: jest.fn().mockResolvedValue(undefined),
+            }),
           },
         },
       ],
@@ -103,7 +128,7 @@ describe('POST /seasons (HTTP integration)', () => {
     return app;
   }
 
-  let app: INestApplication<App>;
+  let app: INestApplication;
 
   afterEach(async () => {
     if (app) {
@@ -147,7 +172,10 @@ describe('POST /seasons (HTTP integration)', () => {
       .expect(409)
       .expect('Content-Type', /json/);
 
-    const body = res.body as { success: boolean; error: { code: number; message: string } };
+    const body = res.body as {
+      success: boolean;
+      error: { code: number; message: string };
+    };
     expect(body.success).toBe(false);
     expect(body.error.code).toBe(409);
     expect(body.error.message).toContain('active season');

@@ -75,7 +75,8 @@ export class SeasonListItemDto {
   @ApiPropertyOptional({
     type: SeasonTopWinnerDto,
     nullable: true,
-    description: 'Populated only when the season is finalized and a winner is recorded',
+    description:
+      'Populated only when the season is finalized and a winner is recorded',
   })
   top_winner: SeasonTopWinnerDto | null;
 }

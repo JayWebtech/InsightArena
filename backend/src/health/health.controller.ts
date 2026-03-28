@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { HealthCheckResult } from '@nestjs/terminus';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { HealthService } from './health.service';
@@ -19,7 +20,7 @@ export class HealthController {
     status: 503,
     description: 'One or more service checks failed',
   })
-  async check() {
+  check(): Promise<HealthCheckResult> {
     return this.healthService.checkHealth();
   }
 

@@ -1,79 +1,40 @@
-import {
-  DiskHealthIndicator,
-  HealthCheckService,
-  HttpHealthIndicator,
-  TypeOrmHealthIndicator,
-} from '@nestjs/terminus';
+jest.mock('./health.service', () => ({
+  HealthService: class HealthService {},
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
-import { getDataSourceToken } from '@nestjs/typeorm';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 
 describe('HealthController', () => {
   let controller: HealthController;
-  let service: HealthService;
-  let mockHealthCheckService: any;
-  let mockHttpHealthIndicator: any;
-  let mockTypeOrmHealthIndicator: any;
-  let mockDiskHealthIndicator: any;
-  let mockDataSource: any;
+  let healthService: {
+    checkHealth: jest.Mock;
+    checkPing: jest.Mock;
+  };
 
   beforeEach(async () => {
-    mockHealthCheckService = {
-      check: jest.fn(),
-    };
-
-    mockHttpHealthIndicator = {
-      pingCheck: jest.fn(),
-    };
-
-    mockTypeOrmHealthIndicator = {
-      pingCheck: jest.fn(),
-    };
-
-    mockDiskHealthIndicator = {
-      checkStorage: jest.fn(),
-    };
-
-    mockDataSource = {
-      query: jest.fn(),
+    healthService = {
+      checkHealth: jest.fn(),
+      checkPing: jest.fn().mockReturnValue({
+        status: 'ok',
+        type: 'ping',
+        timestamp: new Date().toISOString(),
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
-      providers: [
-        HealthService,
-        {
-          provide: HealthCheckService,
-          useValue: mockHealthCheckService,
-        },
-        {
-          provide: HttpHealthIndicator,
-          useValue: mockHttpHealthIndicator,
-        },
-        {
-          provide: TypeOrmHealthIndicator,
-          useValue: mockTypeOrmHealthIndicator,
-        },
-        {
-          provide: DiskHealthIndicator,
-          useValue: mockDiskHealthIndicator,
-        },
-        {
-          provide: getDataSourceToken(),
-          useValue: mockDataSource,
-        },
-      ],
+      providers: [{ provide: HealthService, useValue: healthService }],
     }).compile();
 
     controller = module.get<HealthController>(HealthController);
-    service = module.get<HealthService>(HealthService);
   });
 
   describe('check', () => {
     it('should return health status when all checks pass', async () => {
       const healthCheckResult = {
-        status: 'ok',
+        status: 'ok' as const,
         details: {
           http: { status: 'up' },
           database: { status: 'up' },
@@ -81,52 +42,28 @@ describe('HealthController', () => {
         },
       };
 
-      mockHealthCheckService.check.mockReturnValue(healthCheckResult);
+      healthService.checkHealth.mockResolvedValue(healthCheckResult);
 
       const result = await controller.check();
 
       expect(result).toEqual(healthCheckResult);
-      expect(mockHealthCheckService.check).toHaveBeenCalled();
+      expect(healthService.checkHealth).toHaveBeenCalled();
     });
 
-    it('should check HTTP health', async () => {
-      mockHealthCheckService.check.mockReturnValue({ status: 'ok' });
-      mockHttpHealthIndicator.pingCheck.mockResolvedValue({
-        http: { status: 'up' },
+    it('should delegate to HealthService', async () => {
+      healthService.checkHealth.mockResolvedValue({
+        status: 'ok',
+        details: {},
       });
 
       await controller.check();
 
-      // The actual check is performed by calling the service
-      // which uses the health check service internally
-      expect(mockHealthCheckService.check).toHaveBeenCalled();
+      expect(healthService.checkHealth).toHaveBeenCalledTimes(1);
     });
 
-    it('should check database health', async () => {
-      mockHealthCheckService.check.mockReturnValue({ status: 'ok' });
-      mockTypeOrmHealthIndicator.pingCheck.mockResolvedValue({
-        database: { status: 'up' },
-      });
-
-      await controller.check();
-
-      expect(mockHealthCheckService.check).toHaveBeenCalled();
-    });
-
-    it('should check disk storage health', async () => {
-      mockHealthCheckService.check.mockReturnValue({ status: 'ok' });
-      mockDiskHealthIndicator.checkStorage.mockResolvedValue({
-        storage: { status: 'up' },
-      });
-
-      await controller.check();
-
-      expect(mockHealthCheckService.check).toHaveBeenCalled();
-    });
-
-    it('should return 503 when any check fails', async () => {
+    it('should return 503 payload when service reports error', async () => {
       const failedHealthCheck = {
-        status: 'error',
+        status: 'error' as const,
         details: {
           http: { status: 'up' },
           database: { status: 'down', message: 'Connection refused' },
@@ -134,7 +71,7 @@ describe('HealthController', () => {
         },
       };
 
-      mockHealthCheckService.check.mockReturnValue(failedHealthCheck);
+      healthService.checkHealth.mockResolvedValue(failedHealthCheck);
 
       const result = await controller.check();
 
@@ -150,9 +87,16 @@ describe('HealthController', () => {
       expect(result.status).toBe('ok');
       expect(result.type).toBe('ping');
       expect(result.timestamp).toBeDefined();
+      expect(healthService.checkPing).toHaveBeenCalled();
     });
 
     it('should return valid ISO timestamp', () => {
+      healthService.checkPing.mockReturnValueOnce({
+        status: 'ok',
+        type: 'ping',
+        timestamp: '2026-01-15T12:00:00.000Z',
+      });
+
       const result = controller.checkPing();
 
       const timestamp = new Date(result.timestamp);
@@ -163,15 +107,10 @@ describe('HealthController', () => {
 
   describe('Access control', () => {
     it('health endpoint should be public (decorated with @Public)', () => {
-      // The @Public decorator is applied to the check() method
-      // This means it doesn't require JWT authentication
-      const metadata = Reflect.getMetadata('isPublic', controller.check);
-      // The decorator is applied, so the endpoint will be public
       expect(controller.check).toBeDefined();
     });
 
     it('ping endpoint should be public', () => {
-      // The @Public decorator is applied to the checkPing() method
       expect(controller.checkPing).toBeDefined();
     });
   });

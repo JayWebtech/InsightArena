@@ -21,10 +21,7 @@ export function predictorTierFromReputation(reputationScore: number): string {
 
 export function accuracyRateFromUser(user: User): string {
   if (user.total_predictions <= 0) return '0.0';
-  return (
-    (user.correct_predictions / user.total_predictions) *
-    100
-  ).toFixed(1);
+  return ((user.correct_predictions / user.total_predictions) * 100).toFixed(1);
 }
 
 @Injectable()
@@ -75,7 +72,8 @@ export class AnalyticsService {
       .addOrderBy('prediction.submitted_at', 'DESC')
       .getMany();
 
-    const current_streak = this.computeWinStreakFromResolved(resolvedPredictions);
+    const current_streak =
+      this.computeWinStreakFromResolved(resolvedPredictions);
 
     const reputation_score = fullUser.reputation_score;
 

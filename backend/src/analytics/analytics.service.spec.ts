@@ -82,6 +82,10 @@ describe('AnalyticsService', () => {
           provide: getRepositoryToken(LeaderboardEntry),
           useValue: leaderboardRepository,
         },
+        {
+          provide: getRepositoryToken(Market),
+          useValue: { findOne: jest.fn(), find: jest.fn() },
+        },
       ],
     }).compile();
 
