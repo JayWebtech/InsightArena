@@ -552,6 +552,37 @@ mod market_tests {
         assert_eq!(price, 333_333);
     }
 
+    #[test]
+    fn test_calculate_price_zero_reserve_a_fails() {
+        let result = super::calculate_price(0, 1000);
+        assert!(matches!(result, Err(InsightArenaError::InvalidInput)));
+    }
+
+    #[test]
+    fn test_calculate_price_zero_reserve_b_fails() {
+        let result = super::calculate_price(1000, 0);
+        assert!(matches!(result, Err(InsightArenaError::InvalidInput)));
+    }
+
+    #[test]
+    fn test_calculate_price_overflow_protection() {
+        // reserve_b = i128::MAX / 2 causes overflow when multiplied by 1_000_000
+        let result = super::calculate_price(1, i128::MAX / 2);
+        assert!(matches!(result, Err(InsightArenaError::Overflow)));
+    }
+
+    #[test]
+    fn test_calculate_price_after_swap() {
+        // Initial: 1000/1000 -> price = 1_000_000
+        let initial = super::calculate_price(1000, 1000).unwrap();
+        assert_eq!(initial, 1_000_000);
+
+        // After swap: reserve_a = 1100, reserve_b = 909 -> price changes
+        let after = super::calculate_price(1100, 909).unwrap();
+        assert_eq!(after, 826_363);
+        assert!(after < initial);
+    }
+
     /// Register a mock XLM token (Stellar Asset Contract) and return its address.
     fn register_token(env: &Env) -> Address {
         let token_admin = Address::generate(env);
