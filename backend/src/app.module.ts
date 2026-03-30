@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
+import { AchievementsModule } from './achievements/achievements.module';
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AppController } from './app.controller';
@@ -16,11 +17,13 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { CompetitionsModule } from './competitions/competitions.module';
 import { validate } from './config/env.validation';
+import { FlagsModule } from './flags/flags.module';
 import { HealthModule } from './health/health.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { MarketsModule } from './markets/markets.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PredictionsModule } from './predictions/predictions.module';
+import { SearchModule } from './search/search.module';
 import { SeasonsModule } from './seasons/seasons.module';
 import { SorobanModule } from './soroban/soroban.module';
 import { UsersModule } from './users/users.module';
@@ -77,9 +80,10 @@ import { UsersModule } from './users/users.module';
     NotificationsModule,
     SorobanModule,
     AdminModule,
+    AchievementsModule,
+    SearchModule,
     CommonModule,
     FlagsModule,
-    AnalyticsModule,
   ],
 
   controllers: [AppController],

@@ -136,10 +136,9 @@ fn expected_reward_payouts(
     let variable_pool = reward_pool - fixed_allocated;
     let mut distributed = 0_i128;
     let last_index = variable_entries.len().saturating_sub(1);
-    let mut index = 0_u32;
 
-    for entry in variable_entries.iter() {
-        let amount = if index == last_index {
+    for (index, entry) in variable_entries.iter().enumerate() {
+        let amount = if index == last_index as usize {
             variable_pool - distributed
         } else {
             variable_pool * entry.points as i128 / total_points as i128
@@ -151,7 +150,6 @@ fn expected_reward_payouts(
             user: entry.user.clone(),
             amount,
         });
-        index += 1;
     }
 
     payouts
@@ -184,6 +182,7 @@ fn default_market_params(env: &Env) -> CreateMarketParams {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn settle_winning_market(
     env: &Env,
     client: &InsightArenaContractClient<'_>,
@@ -367,7 +366,8 @@ fn test_points_accumulate_across_markets() {
     );
 
     let profile = client.get_user_stats(&winner);
-    let expected_points = calculate_expected_points(50_000_000, 1, 1) + calculate_expected_points(30_000_000, 2, 2);
+    let expected_points =
+        calculate_expected_points(50_000_000, 1, 1) + calculate_expected_points(30_000_000, 2, 2);
 
     assert_eq!(profile.season_points, expected_points);
     assert_eq!(profile.total_winnings, first_payout + second_payout);

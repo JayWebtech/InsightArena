@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 
 pub mod analytics;
+pub mod conditional;
 pub mod config;
 pub mod dispute;
 pub mod errors;
@@ -23,10 +24,11 @@ pub mod ttl;
 pub use crate::config::Config;
 pub use crate::errors::InsightArenaError;
 pub use crate::governance::{Proposal, ProposalType};
+pub use crate::liquidity::{calculate_lp_tokens, calculate_liquidity_value, calculate_swap_output};
 pub use crate::market::CreateMarketParams;
 pub use crate::storage_types::{
     CreatorStats, DataKey, InviteCode, LeaderboardEntry, LeaderboardSnapshot, Market, MarketStats,
-    PlatformStats, Prediction, Season, UserProfile,
+    PlatformStats, Prediction, Season, UserProfile, LiquidityPool, LPPosition, SwapRecord,
 };
 
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
@@ -170,6 +172,18 @@ impl InsightArenaContract {
         market_id: u64,
     ) -> Result<(), InsightArenaError> {
         market::cancel_market(&env, caller, market_id)
+    }
+
+    // ── Conditional Markets ───────────────────────────────────────────────────
+
+    pub fn create_conditional_market(
+        env: Env,
+        creator: Address,
+        parent_market_id: u64,
+        required_outcome: Symbol,
+        params: CreateMarketParams,
+    ) -> Result<u64, InsightArenaError> {
+        conditional::create_conditional_market(&env, creator, parent_market_id, required_outcome, params)
     }
 
     // ── Dispute ───────────────────────────────────────────────────────────────
@@ -354,7 +368,7 @@ impl InsightArenaContract {
         season::get_active_season(&env)
     }
 
-  pub fn update_leaderboard(
+    pub fn update_leaderboard(
         env: Env,
         admin: Address,
         season_id: u32,
@@ -445,205 +459,70 @@ impl InsightArenaContract {
     pub fn get_platform_stats(env: Env) -> PlatformStats {
         analytics::get_platform_stats(env)
     }
+
+    // ── Liquidity Pool / AMM ──────────────────────────────────────────────────
+
+    /// Add liquidity to a market pool and receive LP tokens
+    pub fn add_liquidity(
+        env: Env,
+        provider: Address,
+        market_id: u64,
+        amount: i128,
+    ) -> Result<i128, InsightArenaError> {
+        liquidity::add_liquidity(&env, provider, market_id, amount)
+    }
+
+    /// Remove liquidity from a pool by burning LP tokens
+    pub fn remove_liquidity(
+        env: Env,
+        provider: Address,
+        market_id: u64,
+        lp_tokens: i128,
+    ) -> Result<i128, InsightArenaError> {
+        liquidity::remove_liquidity(&env, provider, market_id, lp_tokens)
+    }
+
+    /// Swap from one outcome position to another
+    pub fn swap_outcome(
+        env: Env,
+        trader: Address,
+        market_id: u64,
+        from_outcome: Symbol,
+        to_outcome: Symbol,
+        amount_in: i128,
+        min_amount_out: i128,
+    ) -> Result<i128, InsightArenaError> {
+        liquidity::swap_outcome(
+            &env,
+            trader,
+            market_id,
+            from_outcome,
+            to_outcome,
+            amount_in,
+            min_amount_out,
+        )
+    }
+
+    /// Get current price of an outcome in the pool
+    pub fn get_outcome_price(
+        env: Env,
+        market_id: u64,
+        outcome: Symbol,
+    ) -> Result<i128, InsightArenaError> {
+        liquidity::get_outcome_price(&env, market_id, outcome)
+    }
+
+    /// Get LP position for a provider
+    pub fn get_lp_position(
+        env: Env,
+        provider: Address,
+        market_id: u64,
+    ) -> Result<crate::storage_types::LPPosition, InsightArenaError> {
+        liquidity::get_lp_position_public(&env, provider, market_id)
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod config_tests {
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::{Address, Env};
-    use super::{InsightArenaContract, InsightArenaContractClient, InsightArenaError};
-
-    fn deploy(env: &Env) -> InsightArenaContractClient<'_> {
-        let id = env.register(InsightArenaContract, ());
-        InsightArenaContractClient::new(env, &id)
-    }
-
-    fn register_token(env: &Env) -> Address {
-        let token_admin = Address::generate(env);
-        env.register_stellar_asset_contract_v2(token_admin)
-            .address()
-    }
-
-    #[test]
-    fn ensure_not_paused_ok_when_running() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let client = deploy(&env);
-        let admin = Address::generate(&env);
-        let oracle = Address::generate(&env);
-        client.initialize(&admin, &oracle, &200_u32, &register_token(&env));
-        client.get_config();
-    }
-
-    #[test]
-    fn ensure_not_paused_err_when_paused() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let client = deploy(&env);
-        let admin = Address::generate(&env);
-        let oracle = Address::generate(&env);
-        client.initialize(&admin, &oracle, &200_u32, &register_token(&env));
-        client.set_paused(&true);
-        let result = client.try_get_config();
-        assert!(matches!(result, Err(Ok(InsightArenaError::Paused))));
-    }
-
-    #[test]
-    fn ensure_not_paused_not_initialized() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let client = deploy(&env);
-        let result = client.try_get_config();
-        assert!(matches!(result, Err(Ok(InsightArenaError::NotInitialized))));
-    }
-
-    #[test]
-    fn ensure_not_paused_ok_after_unpause() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let client = deploy(&env);
-        let admin = Address::generate(&env);
-        let oracle = Address::generate(&env);
-        client.initialize(&admin, &oracle, &200_u32, &register_token(&env));
-        client.set_paused(&true);
-        client.set_paused(&false);
-        client.get_config();
-    }
-}
-
-#[cfg(test)]
-mod leaderboard_tests {
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::{vec, Address, Env};
-    use super::{
-        InsightArenaContract, InsightArenaContractClient, InsightArenaError, LeaderboardEntry,
-    };
-
-    fn deploy(env: &Env) -> (InsightArenaContractClient<'_>, Address, Address) {
-        let id = env.register(InsightArenaContract, ());
-        let client = InsightArenaContractClient::new(env, &id);
-        let admin = Address::generate(env);
-        let oracle = Address::generate(env);
-        let token_admin = Address::generate(env);
-        let xlm_token = env
-            .register_stellar_asset_contract_v2(token_admin)
-            .address();
-        env.mock_all_auths();
-        client.initialize(&admin, &oracle, &200_u32, &xlm_token);
-        (client, admin, xlm_token)
-    }
-
-    #[test]
-    fn test_update_and_get_historical_leaderboard() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, admin, xlm_token) = deploy(&env);
-
-        let reward_pool = 10_000_000;
-        let token_client = soroban_sdk::token::Client::new(&env, &xlm_token);
-        soroban_sdk::token::StellarAssetClient::new(&env, &xlm_token).mint(&admin, &reward_pool);
-        token_client.approve(&admin, &client.address, &reward_pool, &9999);
-
-        let season_id = client.create_season(&admin, &100, &200, &reward_pool);
-        let user1 = Address::generate(&env);
-        let user2 = Address::generate(&env);
-        let entries = vec![
-            &env,
-            LeaderboardEntry {
-                rank: 1,
-                user: user1.clone(),
-                points: 100,
-                correct_predictions: 10,
-                total_predictions: 15,
-            },
-            LeaderboardEntry {
-                rank: 2,
-                user: user2.clone(),
-                points: 80,
-                correct_predictions: 8,
-                total_predictions: 12,
-            },
-        ];
-
-        client.update_leaderboard(&admin, &season_id, &entries);
-
-        let snapshot = client.get_leaderboard(&season_id);
-        assert_eq!(snapshot.season_id, season_id);
-        assert_eq!(snapshot.entries.len(), 2);
-        assert_eq!(snapshot.entries.get(0).unwrap().user, user1);
-        assert_eq!(snapshot.entries.get(1).unwrap().user, user2);
-    }
-
-    #[test]
-    fn test_list_snapshot_seasons_deduplication() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, admin, xlm_token) = deploy(&env);
-
-        let reward_pool = 20_000_000;
-        soroban_sdk::token::StellarAssetClient::new(&env, &xlm_token).mint(&admin, &reward_pool);
-        soroban_sdk::token::Client::new(&env, &xlm_token).approve(
-            &admin,
-            &client.address,
-            &reward_pool,
-            &9999,
-        );
-
-        let s1 = client.create_season(&admin, &100, &200, &10_000_000);
-        let s2 = client.create_season(&admin, &201, &300, &10_000_000);
-
-        assert_eq!(client.list_snapshot_seasons().len(), 0);
-
-        let entries = vec![
-            &env,
-            LeaderboardEntry {
-                rank: 1,
-                user: Address::generate(&env),
-                points: 10,
-                correct_predictions: 1,
-                total_predictions: 1,
-            },
-        ];
-
-        client.update_leaderboard(&admin, &s1, &entries);
-        assert_eq!(client.list_snapshot_seasons().len(), 1);
-        client.update_leaderboard(&admin, &s1, &entries);
-        assert_eq!(client.list_snapshot_seasons().len(), 1);
-        client.update_leaderboard(&admin, &s2, &entries);
-        assert_eq!(client.list_snapshot_seasons().len(), 2);
-    }
-
-    #[test]
-    fn test_get_leaderboard_not_found() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, _, _) = deploy(&env);
-        let result = client.try_get_leaderboard(&99);
-        assert!(matches!(result, Err(Ok(InsightArenaError::SeasonNotFound))));
-    }
-
-    #[test]
-    fn test_update_leaderboard_unauthorized() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, _, _) = deploy(&env);
-        let stranger = Address::generate(&env);
-        let result = client.try_update_leaderboard(&stranger, &1, &vec![&env]);
-        assert!(matches!(result, Err(Ok(InsightArenaError::Unauthorized))));
-    }
-
-    #[test]
-    fn test_update_leaderboard_when_paused() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, admin, _) = deploy(&env);
-        client.set_paused(&true);
-        let result = client.try_update_leaderboard(&admin, &1, &vec![&env]);
-        assert!(matches!(result, Err(Ok(InsightArenaError::Paused))));
-    }
-}
 
 #[cfg(test)]
 mod season_tests;

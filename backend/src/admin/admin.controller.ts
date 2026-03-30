@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Request,
   UseGuards,
@@ -12,11 +13,17 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { ListFlagsQueryDto } from '../flags/dto/list-flags-query.dto';
+import { ResolveFlagDto } from '../flags/dto/resolve-flag.dto';
 import { AdminService } from './admin.service';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 import { BanUserDto } from './dto/ban-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { ModerateCommentDto } from './dto/moderate-comment.dto';
+import { ReportQueryDto } from './dto/report-query.dto';
+import { ResolveMarketDto } from './dto/resolve-market.dto';
 import { StatsResponseDto } from './dto/stats-response.dto';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -55,6 +62,19 @@ export class AdminController {
     );
   }
 
+  @Patch('users/:id/role')
+  async updateUserRole(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserRoleDto,
+    @Request() req: any,
+  ) {
+    return this.adminService.updateUserRole(
+      id,
+      dto,
+      (req as { user: { id: string } }).user.id,
+    );
+  }
+
   @Get('users/:id/activity')
   async getUserActivity(
     @Param('id') id: string,
@@ -79,5 +99,31 @@ export class AdminController {
       dto,
       (req as { user: { id: string } }).user.id,
     );
+  }
+
+  @Post('markets/:id/resolve')
+  async resolveMarket(
+    @Param('id') id: string,
+    @Body() dto: ResolveMarketDto,
+    @Request() req: any,
+  ) {
+    return this.adminService.adminResolveMarket(
+      id,
+      dto,
+      (req as { user: { id: string } }).user.id,
+    );
+  }
+
+  @Patch('comments/:id/moderate')
+  async moderateComment(
+    @Param('id') id: string,
+    @Body() dto: ModerateCommentDto,
+  ) {
+    return this.adminService.moderateComment(id, dto.is_moderated, dto.reason);
+  }
+
+  @Get('reports/activity')
+  async getActivityReport(@Query() query: ReportQueryDto) {
+    return this.adminService.getActivityReport(query);
   }
 }

@@ -1,23 +1,48 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { ActivityLog } from '../analytics/entities/activity-log.entity';
 import { Competition } from '../competitions/entities/competition.entity';
+import { ListFlagsQueryDto } from '../flags/dto/list-flags-query.dto';
+import { ResolveFlagDto } from '../flags/dto/resolve-flag.dto';
+import { FlagsService } from '../flags/flags.service';
+import { Comment } from '../markets/entities/comment.entity';
 import { Market } from '../markets/entities/market.entity';
+import { NotificationType } from '../notifications/entities/notification.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Prediction } from '../predictions/entities/prediction.entity';
+import { SorobanService } from '../soroban/soroban.service';
 import { User } from '../users/entities/user.entity';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import {
+  ReportFormat,
+  ReportQueryDto,
+  ReportTimeframe,
+} from './dto/report-query.dto';
+import { ResolveMarketDto } from './dto/resolve-market.dto';
 import { StatsResponseDto } from './dto/stats-response.dto';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     @InjectRepository(Market)
     private readonly marketsRepository: Repository<Market>,
+    @InjectRepository(Comment)
+    private readonly commentsRepository: Repository<Comment>,
     @InjectRepository(Prediction)
     private readonly predictionsRepository: Repository<Prediction>,
     @InjectRepository(Competition)
@@ -25,6 +50,8 @@ export class AdminService {
     @InjectRepository(ActivityLog)
     private readonly activityLogsRepository: Repository<ActivityLog>,
     private readonly analyticsService: AnalyticsService,
+    private readonly notificationsService: NotificationsService,
+    private readonly sorobanService: SorobanService,
     private readonly flagsService: FlagsService,
   ) {}
 
@@ -158,6 +185,36 @@ export class AdminService {
     return user;
   }
 
+  async updateUserRole(
+    id: string,
+    dto: UpdateUserRoleDto,
+    adminId: string,
+  ): Promise<User> {
+    if (id === adminId) {
+      throw new BadRequestException('You cannot change your own role');
+    }
+
+    const user = await this.usersRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const previousRole = user.role;
+    user.role = dto.role;
+
+    await this.usersRepository.save(user);
+
+    await this.analyticsService.logActivity(adminId, 'USER_ROLE_CHANGED', {
+      target_user_id: id,
+      previous_role: previousRole,
+      new_role: dto.role,
+    });
+
+    this.logger.log(
+      `Admin ${adminId} changed role of user ${id} from "${previousRole}" to "${dto.role}"`,
+    );
+
+    return user;
+  }
+
   async getUserActivity(userId: string, query: ActivityLogQueryDto) {
     const { page = 1, limit = 10, actionType, startDate, endDate } = query;
     const skip = (page - 1) * limit;
@@ -201,5 +258,183 @@ export class AdminService {
     adminId: string,
   ) {
     return this.flagsService.resolveFlag(flagId, resolveFlagDto, adminId);
+  }
+
+  async adminResolveMarket(
+    id: string,
+    dto: ResolveMarketDto,
+    adminId: string,
+  ): Promise<Market> {
+    const market = await this.marketsRepository.findOne({
+      where: [{ id }, { on_chain_market_id: id }],
+    });
+
+    if (!market) {
+      throw new NotFoundException(`Market "${id}" not found`);
+    }
+
+    if (market.is_resolved) {
+      throw new ConflictException('Market is already resolved');
+    }
+
+    if (market.is_cancelled) {
+      throw new BadRequestException('Cannot resolve a cancelled market');
+    }
+
+    if (!market.outcome_options.includes(dto.resolved_outcome)) {
+      throw new BadRequestException(
+        `Invalid outcome "${dto.resolved_outcome}". Valid options: ${market.outcome_options.join(', ')}`,
+      );
+    }
+
+    // Trigger payout distribution on-chain
+    try {
+      await this.sorobanService.resolveMarket(
+        market.on_chain_market_id,
+        dto.resolved_outcome,
+      );
+    } catch (err) {
+      this.logger.error(
+        'Soroban resolveMarket failed during admin resolution',
+        err,
+      );
+      throw new BadGatewayException('Failed to resolve market on Soroban');
+    }
+
+    market.is_resolved = true;
+    market.resolved_outcome = dto.resolved_outcome;
+    const saved = await this.marketsRepository.save(market);
+
+    // Notify all participants
+    const predictions = await this.predictionsRepository.find({
+      where: { market: { id: market.id } },
+      relations: ['user'],
+    });
+
+    await Promise.all(
+      predictions.map((p) =>
+        this.notificationsService.create(
+          p.user.id,
+          NotificationType.MarketResolved,
+          'Market Resolved',
+          `The market "${market.title}" has been resolved. Winning outcome: ${dto.resolved_outcome}.`,
+          {
+            market_id: market.id,
+            resolved_outcome: dto.resolved_outcome,
+            your_prediction: p.chosen_outcome,
+            won: p.chosen_outcome === dto.resolved_outcome,
+            ...(dto.resolution_note
+              ? { resolution_note: dto.resolution_note }
+              : {}),
+          },
+        ),
+      ),
+    );
+
+    // Log admin action
+    await this.analyticsService.logActivity(
+      adminId,
+      'MARKET_RESOLVED_BY_ADMIN',
+      {
+        market_id: market.id,
+        resolved_outcome: dto.resolved_outcome,
+        resolution_note: dto.resolution_note ?? null,
+      },
+    );
+
+    this.logger.log(
+      `Admin ${adminId} resolved market "${market.title}" (${market.id}) with outcome "${dto.resolved_outcome}"`,
+    );
+
+    return saved;
+  }
+
+  async moderateComment(
+    commentId: string,
+    isModerated: boolean,
+    reason?: string,
+  ): Promise<Comment> {
+    const comment = await this.commentsRepository.findOne({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      throw new NotFoundException(`Comment with ID "${commentId}" not found`);
+    }
+
+    comment.is_moderated = isModerated;
+    comment.moderation_reason = reason ?? null;
+
+    return await this.commentsRepository.save(comment);
+  }
+
+  async getActivityReport(query: ReportQueryDto) {
+    const { timeframe, format } = query;
+    const now = new Date();
+    let startDate: Date;
+
+    switch (timeframe) {
+      case ReportTimeframe.Daily:
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case ReportTimeframe.Weekly:
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case ReportTimeframe.Monthly:
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
+
+    // User Growth
+    const userGrowth = await this.usersRepository.count({
+      where: { created_at: Between(startDate, now) },
+    });
+
+    // Market Creation Trends
+    const marketsCreated = await this.marketsRepository.count({
+      where: { created_at: Between(startDate, now) },
+    });
+
+    // Platform Revenue (accumulated in this period)
+    const volumeResult = (await this.marketsRepository
+      .createQueryBuilder('market')
+      .select('SUM(CAST(market.total_pool_stroops AS DECIMAL))', 'total')
+      .where('market.created_at BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate: now,
+      })
+      .getRawOne()) as { total: string | null };
+
+    const periodVolume = volumeResult?.total || '0';
+    const periodRevenue = (
+      (BigInt(periodVolume.split('.')[0]) * BigInt(2)) /
+      BigInt(100)
+    ).toString();
+
+    // Predictions activity
+    const predictionsCount = await this.predictionsRepository.count({
+      where: { submitted_at: Between(startDate, now) },
+    });
+
+    const reportData = {
+      timeframe,
+      period_start: startDate.toISOString(),
+      period_end: now.toISOString(),
+      user_growth: userGrowth,
+      markets_created: marketsCreated,
+      total_predictions: predictionsCount,
+      period_volume_stroops: periodVolume,
+      platform_revenue_stroops: periodRevenue,
+    };
+
+    if (format === ReportFormat.CSV) {
+      const headers = Object.keys(reportData).join(',');
+      const values = Object.values(reportData).join(',');
+      return `${headers}\n${values}`;
+    }
+
+    return reportData;
   }
 }
