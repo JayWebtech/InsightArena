@@ -51,7 +51,29 @@ pub fn calculate_swap_output(
 
 // ── Helper Functions ──────────────────────────────────────────────────────────
 
-// TODO: Add helper functions
+/// Calculate liquidity value for LP tokens (for withdrawal)
+#[allow(dead_code)]
+pub fn calculate_liquidity_value(
+    lp_tokens: i128,
+    total_liquidity: i128,
+    total_lp_supply: i128,
+) -> Result<i128, InsightArenaError> {
+    if lp_tokens <= 0 || total_lp_supply <= 0 {
+        return Err(InsightArenaError::InvalidInput);
+    }
+
+    if lp_tokens > total_lp_supply {
+        return Err(InsightArenaError::InsufficientFunds);
+    }
+
+    let value = lp_tokens
+        .checked_mul(total_liquidity)
+        .ok_or(InsightArenaError::Overflow)?
+        .checked_div(total_lp_supply)
+        .ok_or(InsightArenaError::Overflow)?;
+
+    Ok(value)
+}
 
 // ── Liquidity Management ──────────────────────────────────────────────────────
 
