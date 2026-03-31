@@ -9,10 +9,10 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { ActivityLog } from '../analytics/entities/activity-log.entity';
 import { Role } from '../common/enums/role.enum';
+import { CompetitionParticipant } from '../competitions/entities/competition-participant.entity';
 import { Competition } from '../competitions/entities/competition.entity';
 import { FlagsService } from '../flags/flags.service';
 import { Comment } from '../markets/entities/comment.entity';
-import { CompetitionParticipant } from '../competitions/entities/competition-participant.entity';
 import { Market } from '../markets/entities/market.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Prediction } from '../predictions/entities/prediction.entity';
@@ -559,6 +559,13 @@ describe('AdminService.adminCancelCompetition', () => {
         { provide: AnalyticsService, useValue: analyticsService },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: SorobanService, useValue: sorobanService },
+        {
+          provide: FlagsService,
+          useValue: {
+            listFlags: jest.fn(),
+            resolveFlag: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
