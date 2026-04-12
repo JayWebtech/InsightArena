@@ -79,13 +79,9 @@ export default function TransparentGrid() {
                   {/* Icon box */}
                   <div
                     aria-hidden="true"
-                    className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0"
+                    className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0"
                   >
-                    <Icon
-                      size={18}
-                      className="text-blue-500"
-                      strokeWidth={1.8}
-                    />
+                    <Icon size={18} className="text-orange-400" />
                   </div>
 
                   {/* Text */}
