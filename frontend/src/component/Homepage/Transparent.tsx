@@ -74,7 +74,7 @@ export default function TransparentGrid() {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <Card className="bg-[#121633] border border-white/10 rounded-xl hover:border-blue-500/50 transition-colors">
+              <Card className="bg-gray-950/60 border border-white/10 rounded-xl hover:border-orange-500/50 transition-colors">
                 <CardContent className="p-6 flex flex-col gap-3">
                   {/* Icon box */}
                   <div
