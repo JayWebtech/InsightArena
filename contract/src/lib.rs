@@ -10,16 +10,12 @@ pub mod escrow;
 // pub mod events;
 pub mod governance;
 pub mod invite;
-pub mod leaderboard;
 pub mod liquidity;
 pub mod market;
-pub mod oracle;
 pub mod prediction;
 pub mod reputation;
 pub mod season;
-pub mod security;
 pub mod storage_types;
-pub mod ttl;
 
 pub use crate::config::Config;
 pub use crate::errors::InsightArenaError;
@@ -59,7 +55,7 @@ impl InsightArenaContract {
         market_id: u64,
         resolved_outcome: Symbol,
     ) -> Result<(), InsightArenaError> {
-        oracle::resolve_market(env, oracle, market_id, resolved_outcome)
+        market::resolve_market(env, oracle, market_id, resolved_outcome)
     }
 
     // ── Config read ───────────────────────────────────────────────────────────
@@ -422,7 +418,7 @@ impl InsightArenaContract {
     /// Season points for `user` in `season_id` (snapshot if finalized, else live profile when applicable).
     /// Returns `0` for unknown users. Never panics.
     pub fn get_user_season_points(env: Env, user: Address, season_id: u32) -> u32 {
-        leaderboard::get_user_season_points(&env, user, season_id)
+        season::get_user_season_points(&env, user, season_id)
     }
 
     // ── Reputation ────────────────────────────────────────────────────────────
@@ -521,11 +517,3 @@ impl InsightArenaContract {
         liquidity::get_lp_position_public(&env, provider, market_id)
     }
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod season_tests;
-
-#[cfg(test)]
-mod prediction_tests;

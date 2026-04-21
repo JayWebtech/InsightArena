@@ -5,7 +5,7 @@ use crate::errors::InsightArenaError;
 use crate::escrow;
 use crate::reputation;
 use crate::storage_types::{DataKey, Market, Prediction};
-use crate::ttl;
+
 
 // ── Params struct ─────────────────────────────────────────────────────────────
 // Soroban limits contract functions to 10 parameters. Bundling the market
@@ -31,7 +31,7 @@ pub struct CreateMarketParams {
 // ── TTL helpers ───────────────────────────────────────────────────────────────
 
 fn bump_market(env: &Env, market_id: u64) {
-    ttl::extend_market_ttl(env, market_id);
+    config::extend_market_ttl(env, market_id);
 }
 
 fn bump_counter(env: &Env) {
@@ -528,5 +528,74 @@ pub fn cancel_market(env: &Env, caller: Address, market_id: u64) -> Result<(), I
 
     emit_market_cancelled(env, market_id, &caller);
 
+    Ok(())
+}
+
+// ── Oracle / Resolution ───────────────────────────────────────────────────────
+
+/// Transition a market into the "resolved" state by recording the winning outcome.
+///
+/// Validation order:
+/// 1. `oracle` address must provide valid cryptographic authorisation.
+/// 2. `oracle` must match the `oracle_address` stored in global configuration.
+/// 3. Market must exist in persistent storage.
+/// 4. `current_time >= market.resolution_time` — resolution window must be open.
+/// 5. `market.is_resolved == false` — prevents double-resolution.
+/// 6. `resolved_outcome` must be one of the symbols in `market.outcome_options`.
+pub fn resolve_market(
+    env: Env,
+    oracle: Address,
+    market_id: u64,
+    resolved_outcome: Symbol,
+) -> Result<(), InsightArenaError> {
+    oracle.require_auth();
+
+    let cfg = config::get_config(&env)?;
+    if oracle != cfg.oracle_address {
+        return Err(InsightArenaError::Unauthorized);
+    }
+
+    let mut market = get_market(&env, market_id)?;
+
+    let now = env.ledger().timestamp();
+    if now < market.resolution_time {
+        return Err(InsightArenaError::MarketStillOpen);
+    }
+
+    if market.is_resolved {
+        return Err(InsightArenaError::MarketAlreadyResolved);
+    }
+
+    if !market.outcome_options.contains(resolved_outcome.clone()) {
+        return Err(InsightArenaError::InvalidOutcome);
+    }
+
+    market.is_resolved = true;
+    market.resolved_outcome = Some(resolved_outcome.clone());
+    market.resolved_at = Some(now);
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::Market(market_id), &market);
+
+    env.storage().persistent().extend_ttl(
+        &DataKey::Market(market_id),
+        config::PERSISTENT_THRESHOLD,
+        config::PERSISTENT_BUMP,
+    );
+
+    emit_market_resolved(&env, market_id, resolved_outcome);
+    reputation::on_market_resolved(&env, &market.creator, market.participant_count);
+
+    Ok(())
+}
+
+pub fn update_oracle_from_governance(
+    env: &Env,
+    new_oracle: Address,
+) -> Result<(), InsightArenaError> {
+    let mut cfg = config::get_config(env)?;
+    cfg.oracle_address = new_oracle;
+    env.storage().persistent().set(&DataKey::Config, &cfg);
     Ok(())
 }
