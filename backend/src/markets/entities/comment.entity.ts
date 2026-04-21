@@ -40,7 +40,7 @@ export class Comment {
   @Column({ default: false })
   is_moderated: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   moderation_reason: string | null;
 
   @CreateDateColumn()
