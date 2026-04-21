@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ThrottlerStorage } from '@nestjs/throttler';
+import { InjectThrottlerStorage, ThrottlerStorage } from '@nestjs/throttler';
 import { RateLimitStatusDto } from './dto/rate-limit-status.dto';
 
 /** Default throttler config mirrors the global ThrottlerModule config in AppModule */
@@ -8,7 +8,10 @@ const DEFAULT_TTL_MS = 60_000; // 60 seconds
 
 @Injectable()
 export class RateLimitService {
-  constructor(private readonly throttlerStorage: ThrottlerStorage) {}
+  constructor(
+    @InjectThrottlerStorage()
+    private readonly throttlerStorage: ThrottlerStorage,
+  ) {}
 
   /**
    * Returns the current rate-limit status for the given identifier

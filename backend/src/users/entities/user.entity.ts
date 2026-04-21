@@ -18,12 +18,12 @@ export class User {
   @IsString()
   stellar_address: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @IsOptional()
   @IsString()
   username: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @IsOptional()
   @IsString()
   avatar_url: string | null;
@@ -62,16 +62,16 @@ export class User {
   @Column({ default: false })
   is_banned: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @IsOptional()
   @IsString()
   ban_reason: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   @IsOptional()
   banned_at: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @IsOptional()
   @IsString()
   banned_by: string | null;

@@ -30,6 +30,20 @@ cp .env.example .env
 # Edit .env with your local DB credentials and secrets
 ```
 
+#### Environment Variables
+
+| Variable              | Description                                                                                                                                                                                                                                                             | Example                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`        | PostgreSQL connection string                                                                                                                                                                                                                                            | `postgresql://user:pass@localhost:5432/insightarena` |
+| `JWT_SECRET`          | Secret for signing JWTs — min 32 chars                                                                                                                                                                                                                                  | any long random string                               |
+| `JWT_EXPIRES_IN`      | JWT expiry duration                                                                                                                                                                                                                                                     | `7d`                                                 |
+| `STELLAR_NETWORK`     | Stellar network to connect to                                                                                                                                                                                                                                           | `testnet` or `mainnet`                               |
+| `SOROBAN_CONTRACT_ID` | Deployed Soroban contract ID — leave as placeholder until contract is deployed                                                                                                                                                                                          | `your-contract-id-here`                              |
+| `SERVER_SECRET_KEY`   | Stellar secret key used by the server to sign transactions. Generate one at [Stellar Laboratory](https://laboratory.stellar.org/#account-creator?network=test) or run `node -e "const sdk=require('@stellar/stellar-sdk'); console.log(sdk.Keypair.random().secret())"` | `SXXXXX...`                                          |
+| `PORT`                | HTTP port the server listens on                                                                                                                                                                                                                                         | `3000`                                               |
+
+> **Note:** `SERVER_SECRET_KEY` must be a valid Stellar secret key starting with `S`. On testnet you can generate and fund one for free at [Stellar Laboratory](https://laboratory.stellar.org/#account-creator?network=test).
+
 ### 3. Database Setup
 
 ```bash
@@ -110,6 +124,7 @@ This runs in order:
 1. ✅ ESLint — code quality
 2. ✅ Jest unit tests — all `*.spec.ts` files
 3. ✅ TypeScript build — via NestJS CLI
+4. ✅ Database migrations — runs all pending migrations
 
 ### Individual Commands
 
@@ -117,6 +132,7 @@ This runs in order:
 make lint    # Run ESLint only
 make test    # Run Jest only
 make build   # Build only
+make migrate # Run database migrations only
 make clean   # Remove dist/ and coverage/
 make help    # List all targets
 ```
@@ -191,6 +207,53 @@ Ensure `DATABASE_URL` in `.env` is correct:
 ```
 DATABASE_URL=postgresql://user:password@localhost:5432/insightarena
 ```
+
+### TypeORM "Data type Object not supported" error
+
+This happens when a TypeORM `@Column` decorator is on a property typed as a union (e.g. `string | null`) without an explicit `type`. TypeScript emits `Object` as the reflected metadata for union types, which TypeORM can't map to Postgres.
+
+**Fix:** Always specify `type` explicitly on nullable columns:
+
+```ts
+// ❌ Bad — TypeScript emits Object for string | null
+@Column({ nullable: true })
+my_field: string | null;
+
+// ✅ Good — explicit type prevents the issue
+@Column({ type: 'text', nullable: true })
+my_field: string | null;
+
+// ✅ Good — for UUID foreign keys
+@Column({ type: 'uuid', nullable: true })
+resolved_by: string | null;
+```
+
+### TypeORM "relation does not exist" error
+
+The database table hasn't been created yet. You need to run migrations:
+
+```bash
+pnpm migration:run
+```
+
+If `migration:run` says "No migrations are pending" but the table still doesn't exist, the migration path glob may not be resolving. As a one-time fix you can temporarily set `synchronize: true` in `src/app.module.ts`, start the server once to create all tables, then set it back to `false`.
+
+### Writing migrations
+
+When you add or change an entity, always generate a migration — never rely on `synchronize: true` in production:
+
+```bash
+# Generate a migration from entity diff
+pnpm migration:generate src/migrations/DescribeYourChange
+
+# Review the generated file before running it
+# Make sure it only contains the changes you expect — not a full schema dump
+
+# Apply it
+pnpm migration:run
+```
+
+> **Warning:** If `migration:generate` produces a file that recreates existing tables (users, markets, etc.), it means it diffed against an empty database instead of your live one. Delete that file and check your `DATABASE_URL` is pointing to the correct database before regenerating.
 
 ---
 

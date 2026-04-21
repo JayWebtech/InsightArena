@@ -91,7 +91,7 @@ export class Flag {
   @IsString()
   admin_notes: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   @IsOptional()
   @IsUUID()
   resolved_by: string | null;

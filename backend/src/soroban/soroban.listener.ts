@@ -29,6 +29,11 @@ export class SorobanListener {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async pollEvents(): Promise<void> {
+    const contractId = process.env.SOROBAN_CONTRACT_ID;
+    if (!contractId || contractId === 'your-contract-id-here') {
+      return; // Skip polling until a real contract is deployed
+    }
+
     if (this.isPolling) {
       this.logger.warn(
         'Soroban listener skipped because previous poll is still running',

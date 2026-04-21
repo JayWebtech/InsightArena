@@ -214,13 +214,14 @@ describe('FlagsService', () => {
         reason: FlagReason.INAPPROPRIATE_CONTENT,
       };
 
+      const mockFlag = createMockFlag();
       const mockQueryBuilder = {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
         take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockResolvedValue([[createMockFlag()], 1]),
+        getManyAndCount: jest.fn().mockResolvedValue([[mockFlag], 1]),
       };
 
       jest
@@ -230,7 +231,7 @@ describe('FlagsService', () => {
       const result = await service.listFlags(query);
 
       expect(result).toEqual({
-        data: [createMockFlag()],
+        data: [mockFlag],
         meta: {
           total: 1,
           page: 1,
