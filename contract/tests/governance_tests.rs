@@ -22,6 +22,39 @@ fn deploy(env: &Env) -> (InsightArenaContractClient<'_>, Address) {
     client.initialize(&admin, &oracle, &200_u32, &xlm_token);
     (client, admin)
 }
+
+fn seed_users(env: &Env, client: &InsightArenaContractClient, count: u32) -> Vec<Address> {
+    let mut users = Vec::new(env);
+    for _ in 0..count {
+        let user = Address::generate(env);
+        users.push_back(user);
+    }
+    users
+}
+
+fn pass_proposal(
+    env: &Env,
+    client: &InsightArenaContractClient,
+    action: &ProposalType,
+    voters: &Vec<Address>,
+) -> u32 {
+    let proposer = Address::generate(env);
+    let duration = 3600;
+    let id = client.create_proposal(&proposer, action, &duration);
+    
+    for voter in voters.iter() {
+        client.vote(&voter, &id, &true);
+    }
+    
+    env.ledger().with_mut(|l| l.timestamp += duration + 1);
+    id
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_governance_logic() {
+    let env = Env::default();
     let (client, _) = deploy(&env);
     let voters = seed_users(&env, &client, 5);
 
@@ -63,7 +96,7 @@ fn test_execute_proposal_updates_min_stake() {
     let (client, _) = deploy(&env);
     let voters = seed_users(&env, &client, 5);
 
-    let new_min = 50_000_000_i128; // 5 XLM in stroops
+    let new_min = 50_000_000_i128; 
     let id = pass_proposal(
         &env,
         &client,
@@ -106,7 +139,6 @@ fn test_execute_proposal_fails_without_quorum() {
     env.mock_all_auths();
     let (client, _) = deploy(&env);
 
-    // Seed 10 users but cast 0 votes — quorum (1) not met
     seed_users(&env, &client, 10);
 
     let duration = 3_600_u64;
@@ -134,7 +166,6 @@ fn test_execute_proposal_fails_before_voting_ends() {
         client.vote(&voter, &id, &true);
     }
 
-    // Do NOT advance time — voting period still active
     let executor = Address::generate(&env);
     let result = client.try_execute_proposal(&executor, &id);
     assert!(result.is_err());
