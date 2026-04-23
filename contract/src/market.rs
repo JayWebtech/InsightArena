@@ -712,8 +712,66 @@ pub fn get_conditional_markets(env: &Env, parent_market_id: u64) -> Vec<Conditio
     results
 }
 
+/// Get the direct parent market for a conditional market.
+///
+/// Returns `MarketNotFound` when `market_id` is not a conditional market.
+pub fn get_parent_market(env: &Env, market_id: u64) -> Result<Market, InsightArenaError> {
+    let parent_market_id: u64 = env
+        .storage()
+        .persistent()
+        .get(&DataKey::ConditionalParent(market_id))
+        .ok_or(InsightArenaError::MarketNotFound)?;
+
+    get_market(env, parent_market_id)
+}
+
+/// Return the ancestry chain for a market, from the provided market up to root.
+///
+/// The returned chain always includes `market_id` as the first element.
+/// The computed result is cached at `DataKey::ConditionalChain(market_id)`.
+pub fn get_conditional_chain(
+    env: &Env,
+    market_id: u64,
+) -> Result<crate::storage_types::ConditionalChain, InsightArenaError> {
+    if !env.storage().persistent().has(&DataKey::Market(market_id)) {
+        return Err(InsightArenaError::MarketNotFound);
+    }
+
+    if let Some(cached) = env
+        .storage()
+        .persistent()
+        .get::<_, crate::storage_types::ConditionalChain>(&DataKey::ConditionalChain(market_id))
+    {
+        return Ok(cached);
+    }
+
+    let mut chain_ids: Vec<u64> = Vec::new(env);
+    chain_ids.push_back(market_id);
+
+    let mut cursor = market_id;
+    while let Some(parent_id) = env
+        .storage()
+        .persistent()
+        .get::<_, u64>(&DataKey::ConditionalParent(cursor))
+    {
+        chain_ids.push_back(parent_id);
+        cursor = parent_id;
+    }
+
+    let depth = chain_ids.len();
+    let chain = crate::storage_types::ConditionalChain {
+        market_ids: chain_ids,
+        depth,
+    };
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::ConditionalChain(market_id), &chain);
+
+    Ok(chain)
+}
+
 // TODO: validate_conditional_params
-// TODO: get_parent_market / get_conditional_chain
 // TODO: calculate_conditional_depth / validate_no_circular_dependency
 
 fn activate_conditional_market(env: &Env, market_id: u64) -> Result<(), InsightArenaError> {

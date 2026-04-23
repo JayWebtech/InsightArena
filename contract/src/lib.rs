@@ -21,7 +21,7 @@ pub use crate::governance::{Proposal, ProposalType};
 pub use crate::liquidity::{calculate_liquidity_value, calculate_lp_tokens, calculate_swap_output};
 pub use crate::market::CreateMarketParams;
 pub use crate::storage_types::{
-    ConditionalMarket, CreatorStats, DataKey, InviteCode, LPPosition, LeaderboardEntry,
+    ConditionalChain, ConditionalMarket, CreatorStats, DataKey, InviteCode, LPPosition, LeaderboardEntry,
     LeaderboardSnapshot, LiquidityPool, Market, MarketStats, PlatformStats, Prediction, Season,
     SwapRecord, UserProfile,
 };
@@ -187,6 +187,19 @@ impl InsightArenaContract {
         parent_market_id: u64,
     ) -> Vec<crate::storage_types::ConditionalMarket> {
         market::get_conditional_markets(&env, parent_market_id)
+    }
+
+    /// Get the direct parent market for a conditional market.
+    pub fn get_parent_market(env: Env, market_id: u64) -> Result<Market, InsightArenaError> {
+        market::get_parent_market(&env, market_id)
+    }
+
+    /// Get full conditional ancestry chain for a market.
+    pub fn get_conditional_chain(
+        env: Env,
+        market_id: u64,
+    ) -> Result<crate::storage_types::ConditionalChain, InsightArenaError> {
+        market::get_conditional_chain(&env, market_id)
     }
 
     // ── Dispute ───────────────────────────────────────────────────────────────
