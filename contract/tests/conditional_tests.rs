@@ -248,6 +248,101 @@ fn test_validate_conditional_params_valid_passes() {
 }
 
 #[test]
+fn test_no_circular_dependency_direct_loop_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    let parent_id = client.create_market(&creator, &default_params(&env));
+    let new_market_id = client.get_market_count() + 1;
+    let contract_id = client.address.clone();
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::ConditionalParent(parent_id), &new_market_id);
+    });
+
+    let result = client.try_create_conditional_market(
+        &creator,
+        &parent_id,
+        &symbol_short!("yes"),
+        &conditional_params(&env, &client, parent_id),
+    );
+
+    assert!(matches!(
+        result,
+        Err(Ok(InsightArenaError::ConditionalDepthExceeded))
+    ));
+}
+
+#[test]
+fn test_no_circular_dependency_indirect_loop_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    let root_id = client.create_market(&creator, &default_params(&env));
+    let mid_id = client.create_conditional_market(
+        &creator,
+        &root_id,
+        &symbol_short!("yes"),
+        &conditional_params(&env, &client, root_id),
+    );
+
+    let new_market_id = client.get_market_count() + 1;
+    let contract_id = client.address.clone();
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::ConditionalParent(root_id), &mid_id);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ConditionalParent(mid_id), &new_market_id);
+    });
+
+    let result = client.try_create_conditional_market(
+        &creator,
+        &root_id,
+        &symbol_short!("yes"),
+        &conditional_params(&env, &client, root_id),
+    );
+
+    assert!(matches!(
+        result,
+        Err(Ok(InsightArenaError::ConditionalDepthExceeded))
+    ));
+}
+
+#[test]
+fn test_no_circular_dependency_valid_chain_passes() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    let root_id = client.create_market(&creator, &default_params(&env));
+    let child_id = client.create_conditional_market(
+        &creator,
+        &root_id,
+        &symbol_short!("yes"),
+        &conditional_params(&env, &client, root_id),
+    );
+
+    let result = client.try_create_conditional_market(
+        &creator,
+        &child_id,
+        &symbol_short!("yes"),
+        &conditional_params(&env, &client, child_id),
+    );
+
+    assert!(result.is_ok());
+}
+
+#[test]
 fn test_create_conditional_market_exceeds_depth_fails() {
     let env = Env::default();
     env.mock_all_auths();

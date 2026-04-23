@@ -624,6 +624,11 @@ pub fn create_conditional_market(
 
     let depth = calculate_conditional_depth(env, parent_market_id)?;
 
+    let new_market_id = load_market_count(env)
+        .checked_add(1)
+        .ok_or(InsightArenaError::Overflow)?;
+    validate_no_circular_dependency(env, new_market_id, parent_market_id)?;
+
     let market_id = create_market(env, creator, params)?;
 
     let conditional_market = ConditionalMarket::new(
@@ -793,6 +798,32 @@ fn validate_conditional_params(
 
     if params.resolution_time <= params.end_time {
         return Err(InsightArenaError::InvalidTimeRange);
+    }
+
+    Ok(())
+}
+
+fn validate_no_circular_dependency(
+    env: &Env,
+    new_market_id: u64,
+    parent_market_id: u64,
+) -> Result<(), InsightArenaError> {
+    let mut current = parent_market_id;
+
+    loop {
+        if current == new_market_id {
+            return Err(InsightArenaError::ConditionalDepthExceeded);
+        }
+
+        if let Some(next_parent) = env
+            .storage()
+            .persistent()
+            .get::<_, u64>(&DataKey::ConditionalParent(current))
+        {
+            current = next_parent;
+        } else {
+            break;
+        }
     }
 
     Ok(())
