@@ -8,7 +8,6 @@ import {
   Contract,
   nativeToScVal,
   Networks,
-  Transaction,
 } from '@stellar/stellar-sdk';
 
 export interface SorobanPredictionResult {
@@ -218,12 +217,12 @@ export class SorobanService {
         const assembledTx = SorobanRpc.assembleTransaction(
           tx,
           simulation,
-        ) as Transaction;
+        ).build();
         assembledTx.sign(serverKeypair);
 
         // Submit
         const response = await this.rpcServer.sendTransaction(assembledTx);
-        if (response.status === SorobanRpc.Api.SendTransactionStatus.ERROR) {
+        if (response.status === 'ERROR') {
           throw new Error(
             `Transaction submission failed: ${JSON.stringify(response.errorResult)}`,
           );
@@ -235,10 +234,8 @@ export class SorobanService {
         let statusResponse = await this.rpcServer.getTransaction(response.hash);
         let attempts = 0;
         while (
-          (statusResponse.status ===
-            SorobanRpc.Api.GetTransactionStatus.NOT_FOUND ||
-            statusResponse.status ===
-              SorobanRpc.Api.GetTransactionStatus.PENDING) &&
+          statusResponse.status ===
+            SorobanRpc.Api.GetTransactionStatus.NOT_FOUND &&
           attempts < 10
         ) {
           await new Promise((resolve) => setTimeout(resolve, 2000));

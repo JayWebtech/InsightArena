@@ -50,6 +50,7 @@ export class LeaderboardController {
   @ApiResponse({
     status: 200,
     description: 'Historical leaderboard with rank changes',
+    type: PaginatedLeaderboardHistoryResponse,
   })
   async getHistory(
     @Query() query: LeaderboardHistoryQueryDto,

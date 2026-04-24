@@ -43,12 +43,16 @@ describe('accuracyRateFromUser', () => {
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
+  let module: TestingModule;
   let usersRepository: jest.Mocked<Pick<Repository<User>, 'findOne'>>;
   let predictionsRepository: jest.Mocked<
     Pick<Repository<Prediction>, 'createQueryBuilder'>
   >;
   let leaderboardRepository: jest.Mocked<
     Pick<Repository<LeaderboardEntry>, 'createQueryBuilder'>
+  >;
+  let marketHistoryRepository: jest.Mocked<
+    Pick<Repository<MarketHistory>, 'createQueryBuilder'>
   >;
 
   const baseUser: User = {
@@ -75,8 +79,9 @@ describe('AnalyticsService', () => {
     usersRepository = { findOne: jest.fn() };
     leaderboardRepository = { createQueryBuilder: jest.fn() };
     predictionsRepository = { createQueryBuilder: jest.fn() };
+    marketHistoryRepository = { createQueryBuilder: jest.fn() };
 
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         AnalyticsService,
         { provide: getRepositoryToken(User), useValue: usersRepository },
@@ -102,11 +107,7 @@ describe('AnalyticsService', () => {
         },
         {
           provide: getRepositoryToken(MarketHistory),
-          useValue: {
-            find: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-          },
+          useValue: marketHistoryRepository,
         },
       ],
     }).compile();
@@ -278,9 +279,11 @@ describe('AnalyticsService', () => {
 
       const result = await service.getMarketHistory('market-1');
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
-        recorded_at: mockHistory[0].recorded_at,
+      expect(result.market_id).toBe('market-1');
+      expect(result.history).toHaveLength(1);
+      expect(result.history[0]).toEqual({
+        timestamp: mockHistory[0].recorded_at,
+        prediction_volume: undefined, // default for mock
         pool_size_stroops: '1000',
         participant_count: 5,
         outcome_probabilities: [60, 40],

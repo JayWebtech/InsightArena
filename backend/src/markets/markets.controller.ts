@@ -286,8 +286,7 @@ export class MarketsController {
     @Param('id') id: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('interval') interval?: 'hourly' | 'daily',
   ) {
-    return this.analyticsService.getMarketHistory(id, from, to, interval);
+    return this.analyticsService.getMarketHistory(id, from, to);
   }
 }

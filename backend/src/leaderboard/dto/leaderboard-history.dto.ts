@@ -22,7 +22,10 @@ export class LeaderboardHistoryQueryDto {
   @IsOptional()
   address?: string;
 
-  @ApiPropertyOptional({ description: 'Number of days for history (max 90)', default: 30 })
+  @ApiPropertyOptional({
+    description: 'Number of days for history (max 90)',
+    default: 30,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
